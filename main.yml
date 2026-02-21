@@ -1,0 +1,39 @@
+version: v1.0
+name: Deploy to Portainer (File-Based Stack)
+
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu2204
+
+blocks:
+  - name: Deploy Stack
+    task:
+      secrets:
+        - name: portainer-secrets
+      jobs:
+        - name: Update Portainer Stack
+          commands:
+            - checkout
+
+            - sudo apt-get update && sudo apt-get install -y jq
+
+            - echo "Deploying commit:"
+            - git rev-parse HEAD
+
+            - jq -Rs '{StackFileContent: .}' docker-compose.yml > payload.json
+
+            - echo "Payload size:" && wc -c payload.json
+
+            - |
+              response=$(curl --fail --silent --show-error \
+                -X PUT \
+                -H "X-API-Key: $PORTAINER_API_KEY" \
+                -H "Content-Type: application/json" \
+                --data-binary "@payload.json" \
+                "$PORTAINER_URL/api/stacks/$PORTAINER_STACK_ID?endpointId=$PORTAINER_ENDPOINT_ID&prune=true&pullImage=true")
+
+              echo "Portainer response:"
+              echo "$response"
+
+            - echo "Stack update completed"
